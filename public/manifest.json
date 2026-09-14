@@ -1,0 +1,12 @@
+{
+  "name": "Shamba Voice",
+  "short_name": "Shamba Voice",
+  "description": "Ongea na Shamba Lako — rekodi ya shamba kwa sauti.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#F5F0E4",
+  "theme_color": "#1E3524",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
