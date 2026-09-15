@@ -1,11 +1,14 @@
+import { generateText } from "ai";
+import { getChatModel, isOpenAIConfigured } from "./ai-model";
 import { SeasonSummary, formatTZS } from "./calc";
 
 /**
  * PRD Rule 3 / Section 16: the calculation engine computes; the AI only explains.
  * This module builds a deterministic Kiswahili answer from `summary` first.
- * If ANTHROPIC_API_KEY is set, we optionally ask Claude to rephrase that same
- * answer more conversationally — but we pass it the already-computed numbers
- * as fixed facts, never asking it to do arithmetic itself.
+ * If OPENAI_API_KEY is set, we optionally ask OpenAI (via the Vercel AI SDK)
+ * to rephrase that same answer more conversationally — but we pass it the
+ * already-computed numbers as fixed facts, never asking it to do arithmetic
+ * itself.
  */
 
 export function answerFromData(question: string, summary: SeasonSummary): string {
@@ -52,31 +55,17 @@ Do NOT change any numbers. Do NOT add new numbers or claims. Do NOT add disclaim
 export async function answerQuestion(question: string, summary: SeasonSummary): Promise<string> {
   const factualAnswer = answerFromData(question, summary);
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return factualAnswer;
+  if (!isOpenAIConfigured()) return factualAnswer;
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 200,
-        system: REPHRASE_SYSTEM_PROMPT,
-        messages: [
-          { role: "user", content: `Swali: ${question}\nJibu la ukweli (nambari ni sahihi, usibadilishe): ${factualAnswer}` },
-        ],
-      }),
-      signal: AbortSignal.timeout(6000),
+    const { text } = await generateText({
+      model: getChatModel(),
+      system: REPHRASE_SYSTEM_PROMPT,
+      prompt: `Swali: ${question}\nJibu la ukweli (nambari ni sahihi, usibadilishe): ${factualAnswer}`,
+      maxOutputTokens: 200,
+      abortSignal: AbortSignal.timeout(6000),
     });
-    if (!res.ok) return factualAnswer;
-    const data = await res.json();
-    const text = (data.content || []).map((b: any) => b.text || "").join("").trim();
-    return text || factualAnswer;
+    return text.trim() || factualAnswer;
   } catch {
     return factualAnswer;
   }
