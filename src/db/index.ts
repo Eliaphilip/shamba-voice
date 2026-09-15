@@ -1,15 +1,14 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import postgres from "postgres";
+import { drizzle } from "drizzle-orm/postgres-js";
 import * as schema from "./schema";
-import path from "path";
 
-// Single shared SQLite connection (file-based, persists between requests in dev/prod on one instance).
-// For production at scale, swap this file for a Postgres connection (see README "Going to production").
-const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), "shamba-voice.db");
+const connectionString = process.env.DATABASE_URL;
 
-const sqlite = new Database(dbPath);
-sqlite.pragma("journal_mode = WAL");
-sqlite.pragma("foreign_keys = ON");
+if (!connectionString) {
+  throw new Error("DATABASE_URL is not set");
+}
 
-export const db = drizzle(sqlite, { schema });
-export { sqlite };
+const client = postgres(connectionString);
+
+export const db = drizzle(client, { schema });
+export { client };

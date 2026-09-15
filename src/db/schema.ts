@@ -1,20 +1,27 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { pgTable, text, boolean, real } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-const id = () => text("id").primaryKey().$defaultFn(() => crypto.randomUUID());
-const createdAt = () => text("created_at").notNull().default(sql`(CURRENT_TIMESTAMP)`);
+const id = () =>
+  text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID());
+
+const createdAt = () =>
+  text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`);
 
 // ---------- Auth / Identity ----------
 
-export const users = sqliteTable("users", {
+export const users = pgTable("users", {
   id: id(),
   phone: text("phone").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
-  role: text("role").notNull().default("farmer"), // "farmer" | "admin"
+  role: text("role").notNull().default("farmer"),
   createdAt: createdAt(),
 });
 
-export const sessions = sqliteTable("sessions", {
+export const sessions = pgTable("sessions", {
   id: id(),
   userId: text("user_id").notNull(),
   token: text("token").notNull().unique(),
@@ -24,18 +31,18 @@ export const sessions = sqliteTable("sessions", {
 
 // ---------- Farmer / Farm ----------
 
-export const farmers = sqliteTable("farmers", {
+export const farmers = pgTable("farmers", {
   id: id(),
   userId: text("user_id").notNull().unique(),
   farmerCode: text("farmer_code").notNull().unique(),
   name: text("name").notNull(),
   preferredLanguage: text("preferred_language").notNull().default("sw"),
   locationApprox: text("location_approx"),
-  status: text("status").notNull().default("active"), // active | suspended | deleted
+  status: text("status").notNull().default("active"),
   createdAt: createdAt(),
 });
 
-export const farms = sqliteTable("farms", {
+export const farms = pgTable("farms", {
   id: id(),
   farmerId: text("farmer_id").notNull(),
   name: text("name").notNull(),
@@ -44,54 +51,57 @@ export const farms = sqliteTable("farms", {
   createdAt: createdAt(),
 });
 
-export const seasons = sqliteTable("seasons", {
+export const seasons = pgTable("seasons", {
   id: id(),
   farmId: text("farm_id").notNull(),
-  label: text("label").notNull(), // e.g. "Msimu 2026"
+  label: text("label").notNull(),
   crop: text("crop").notNull(),
   plantingDate: text("planting_date"),
-  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: createdAt(),
 });
 
 // ---------- Transactions ----------
 
-export const transactions = sqliteTable("transactions", {
+export const transactions = pgTable("transactions", {
   id: id(),
   seasonId: text("season_id").notNull(),
-  type: text("type").notNull(), // "expense" | "sale"
-  category: text("category").notNull(), // Mbolea, Vibarua, Usafiri, Pembejeo, Mauzo, Nyingine...
+  type: text("type").notNull(),
+  category: text("category").notNull(),
   activity: text("activity"),
   amount: real("amount").notNull(),
   crop: text("crop"),
   quantityLabel: text("quantity_label"),
-  occurredAt: text("occurred_at").notNull().default(sql`(CURRENT_TIMESTAMP)`),
-  source: text("source").notNull().default("voice"), // voice | manual | clarified
+  occurredAt: text("occurred_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+  source: text("source").notNull().default("voice"),
   voiceRecordingId: text("voice_recording_id"),
   createdAt: createdAt(),
 });
 
-export const productions = sqliteTable("productions", {
+export const productions = pgTable("productions", {
   id: id(),
   seasonId: text("season_id").notNull(),
   quantity: real("quantity").notNull(),
   unit: text("unit").notNull().default("Mifuko"),
   lossQuantity: real("loss_quantity"),
-  recordedAt: text("recorded_at").notNull().default(sql`(CURRENT_TIMESTAMP)`),
+  recordedAt: text("recorded_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
 // ---------- Voice / AI pipeline ----------
 
-export const voiceRecordings = sqliteTable("voice_recordings", {
+export const voiceRecordings = pgTable("voice_recordings", {
   id: id(),
   farmerId: text("farmer_id").notNull(),
   transcript: text("transcript").notNull(),
   status: text("status").notNull().default("pending"),
-  // pending | transcribed | extracted | needs_clarification | confirmed | failed
   createdAt: createdAt(),
 });
 
-export const aiExtractions = sqliteTable("ai_extractions", {
+export const aiExtractions = pgTable("ai_extractions", {
   id: id(),
   voiceRecordingId: text("voice_recording_id").notNull().unique(),
   rawJson: text("raw_json").notNull(),
@@ -100,7 +110,7 @@ export const aiExtractions = sqliteTable("ai_extractions", {
   createdAt: createdAt(),
 });
 
-export const aiConversations = sqliteTable("ai_conversations", {
+export const aiConversations = pgTable("ai_conversations", {
   id: id(),
   farmerId: text("farmer_id").notNull(),
   question: text("question").notNull(),
@@ -110,15 +120,15 @@ export const aiConversations = sqliteTable("ai_conversations", {
 
 // ---------- Trust / Governance ----------
 
-export const consents = sqliteTable("consents", {
+export const consents = pgTable("consents", {
   id: id(),
   farmerId: text("farmer_id").notNull(),
-  type: text("type").notNull(), // data_processing | voice_recording
-  granted: integer("granted", { mode: "boolean" }).notNull().default(true),
+  type: text("type").notNull(),
+  granted: boolean("granted").notNull().default(true),
   createdAt: createdAt(),
 });
 
-export const auditLogs = sqliteTable("audit_logs", {
+export const auditLogs = pgTable("audit_logs", {
   id: id(),
   userId: text("user_id"),
   action: text("action").notNull(),
