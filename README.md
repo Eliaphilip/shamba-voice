@@ -15,7 +15,7 @@ match the product requirements in the original PRD.
 | Database | SQLite via **Drizzle ORM** (`better-sqlite3`) | Zero-config for local dev; swap to Postgres for production (see below) |
 | Auth | Cookie sessions, `bcryptjs` password hashing | Simple, real, no third-party auth dependency |
 | Voice input | Browser **Web Speech API** (`sw-TZ`), typed-text fallback | Works today in Chrome/Edge with zero cost; see "Going further" for production ASR |
-| AI extraction | Rule-based Kiswahili parser, optional Claude API escalation | Works with **zero configuration**; add `ANTHROPIC_API_KEY` to handle harder phrasings |
+| AI extraction | Rule-based Kiswahili parser, optional OpenAI escalation via Vercel AI SDK | Works with **zero configuration**; add `OPENAI_API_KEY` to handle harder phrasings |
 | Financial math | Plain TypeScript, `src/lib/calc.ts` | Never delegated to the LLM — see "Architecture rules" |
 
 ## Getting started
@@ -136,18 +136,23 @@ described in a comment:
 
 ## Enabling the LLM (optional)
 
-Everything works with zero external services. To let Claude assist with
-harder phrasings the rule-based parser can't confidently resolve, and to make
-the AI assistant's phrasing more natural:
+Everything works with zero external services. To let OpenAI (via the
+[Vercel AI SDK](https://ai-sdk.dev)) assist with harder phrasings the
+rule-based parser can't confidently resolve, and to make the AI assistant's
+phrasing more natural:
 
 ```bash
 # .env
-ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+# Optional, defaults to gpt-4o-mini
+OPENAI_MODEL=gpt-4o-mini
 ```
 
-`extraction.ts` only escalates to Claude when the rule-based parser's
-confidence is below a threshold, and `assistant.ts` only asks Claude to
-reword a fact it already computed — see "Architecture rules" above for why.
+`extraction.ts` only escalates to OpenAI (`generateObject`) when the
+rule-based parser's confidence is below a threshold, and `assistant.ts` only
+asks OpenAI (`generateText`) to reword a fact it already computed — see
+"Architecture rules" above for why. The model is configured centrally in
+`src/lib/ai-model.ts`.
 
 ## Going to production
 

@@ -12,6 +12,8 @@
     "db:reset": "rm -f shamba-voice.db shamba-voice.db-* && npm run db:push && npm run db:seed"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.66",
+    "ai": "^7.0.101",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.2",

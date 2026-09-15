@@ -5,14 +5,19 @@
  *  1. Rule-based Kiswahili parser (below) — fast, free, works with zero configuration,
  *     and covers the common phrasings farmers actually use ("nimenunua mbolea kwa elfu
  *     themanini", "nimeuza mahindi kwa laki mbili na hamsini").
- *  2. Optional Claude API call (ANTHROPIC_API_KEY) for utterances the rule-based parser
- *     can't confidently resolve — strictly for *interpretation*, never for arithmetic
- *     (see src/lib/calc.ts for the deterministic math, per PRD Rule 3).
+ *  2. Optional OpenAI call via the Vercel AI SDK (OPENAI_API_KEY) for utterances the
+ *     rule-based parser can't confidently resolve — strictly for *interpretation*,
+ *     never for arithmetic (see src/lib/calc.ts for the deterministic math, per PRD
+ *     Rule 3).
  *
  * PRD Rule 1 (Section 11 / 26): never invent a missing amount. If the amount can't be
  * found, the result comes back with missingFields=["amount"] and the caller must ask
  * the farmer directly rather than guess.
  */
+
+import { generateObject } from "ai";
+import { z } from "zod";
+import { getChatModel, isOpenAIConfigured } from "./ai-model";
 
 export type ExtractedTransaction = {
   type: "expense" | "sale" | null;
@@ -227,42 +232,35 @@ export function extractFromTranscript(transcript: string): ExtractedTransaction 
   return { type, category, activity, amount, crop, quantityLabel, missingFields, confidence };
 }
 
-// ---------- Optional LLM-assisted extraction (used when ANTHROPIC_API_KEY is set) ----------
+// ---------- Optional LLM-assisted extraction (used when OPENAI_API_KEY is set) ----------
 
 const EXTRACTION_SYSTEM_PROMPT = `You extract structured farm-transaction data from a Tanzanian farmer's spoken Kiswahili sentence.
-Respond with ONLY minified JSON, no prose, no markdown fences, matching exactly this shape:
-{"type":"expense"|"sale"|null,"category":string|null,"activity":string|null,"amount":number|null,"crop":string|null,"quantityLabel":string|null}
 Rules:
 - amount must be a plain number in Tanzanian Shillings, or null if not stated. NEVER invent or estimate an amount.
 - category should be a short Kiswahili noun (e.g. "Mbolea", "Vibarua", "Mauzo", "Usafiri", "Mbegu", "Dawa").
 - If the sentence doesn't mention a value clearly, leave that field null rather than guessing.`;
 
-export async function extractWithClaude(transcript: string): Promise<ExtractedTransaction | null> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return null;
+const extractionSchema = z.object({
+  type: z.enum(["expense", "sale"]).nullable(),
+  category: z.string().nullable(),
+  activity: z.string().nullable(),
+  amount: z.number().nullable(),
+  crop: z.string().nullable(),
+  quantityLabel: z.string().nullable(),
+});
+
+export async function extractWithOpenAI(transcript: string): Promise<ExtractedTransaction | null> {
+  if (!isOpenAIConfigured()) return null;
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 300,
-        system: EXTRACTION_SYSTEM_PROMPT,
-        messages: [{ role: "user", content: transcript }],
-      }),
+    const { object: parsed } = await generateObject({
+      model: getChatModel(),
+      schema: extractionSchema,
+      system: EXTRACTION_SYSTEM_PROMPT,
+      prompt: transcript,
       // Keep this fast — the farmer is waiting on a mobile connection.
-      signal: AbortSignal.timeout(8000),
+      abortSignal: AbortSignal.timeout(8000),
     });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const text = (data.content || []).map((b: any) => b.text || "").join("").trim();
-    const cleaned = text.replace(/^```json\s*|```$/g, "");
-    const parsed = JSON.parse(cleaned);
 
     const missingFields: string[] = [];
     if (parsed.amount === null || parsed.amount === undefined) missingFields.push("amount");
@@ -284,11 +282,11 @@ export async function extractWithClaude(transcript: string): Promise<ExtractedTr
   }
 }
 
-/** Main entry point: tries the rule-based parser; escalates to Claude only if confidence is low and a key is configured. */
+/** Main entry point: tries the rule-based parser; escalates to OpenAI only if confidence is low and a key is configured. */
 export async function extractTransaction(transcript: string): Promise<ExtractedTransaction> {
   const ruleBased = extractFromTranscript(transcript);
   if (ruleBased.confidence >= 0.66) return ruleBased;
 
-  const llmResult = await extractWithClaude(transcript);
+  const llmResult = await extractWithOpenAI(transcript);
   return llmResult ?? ruleBased;
 }
